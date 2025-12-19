@@ -16,6 +16,8 @@
 
 // TODO: clean up entire driver
 
+#define	PCID_82540EM	0x100E
+
 #define E1000_REG_CTRL	0x0000
 #define E1000_REG_EERD	0x0014	// EEPROM Read
 #define E1000_REG_ICR	0x00C0  // Interrupt Cause Read
@@ -208,6 +210,7 @@ CPCIDev *E1000PCIDevFind()
 	switch (pci->device_id)
 	{
 		case PCID_82545EM:
+		case PCID_82540EM:
 			break;
 
 		default:
