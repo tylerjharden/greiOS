@@ -1,0 +1,69 @@
+// Minimal HTTP (no TLS) client for ZealOS networking stack
+// Usage: run after C:/Home/Net/Start.ZC has succeeded.
+// Then: Cd("C:/Home/Net/Programs"); ExeFile("HttpGet");
+
+#define HTTPGET_BUF_SIZE 2048
+
+U0 HttpGetOnce(U8 *host, U8 *path)
+{
+	CTCPSocket *tcp;
+	U8			 buf[HTTPGET_BUF_SIZE + 1];
+	I64			 n;
+	U8			 *req;
+	I64			 sent;
+
+	if (!path || !*path)
+		path = "/";
+
+	"\n$$LTGREEN$$HttpGet$$FG$$ host=$$YELLOW$$%s$$FG$$ path=$$YELLOW$$%s$$FG$$\n", host, path;
+
+	tcp = TCPConnectionCreate(host, 80);
+	if (!tcp)
+	{
+		"\n$$RED$$ERROR$$FG$$: TCPConnectionCreate failed. Is NetConfigure up (DHCP/DNS)?\n";
+		return;
+	}
+
+	req = MStrPrint("GET %s HTTP/1.0\r\nHost: %s\r\nUser-Agent: ZealOS-HttpGet\r\nAccept: */*\r\nConnection: close\r\n\r\n",
+					 path, host);
+
+	sent = TCPSocketSendAll(tcp, req, StrLen(req));
+	Free(req);
+	if (sent <= 0)
+	{
+		"\n$$RED$$ERROR$$FG$$: failed to send request.\n";
+		TCPSocketClose(tcp);
+		return;
+	}
+
+	"\n$$LTBLUE$$--- response ---$$FG$$\n";
+	while ((n = TCPSocketReceive(tcp, buf, HTTPGET_BUF_SIZE)) > 0)
+	{
+		buf[n] = 0;
+		"%s", buf;
+	}
+
+	"\n$$LTBLUE$$--- end ---$$FG$$\n";
+	TCPSocketClose(tcp);
+}
+
+U0 HttpGet()
+{
+	U8 *host = StrGet("Host (e.g. example.com): ");
+	U8 *path = StrGet("Path (e.g. /): ");
+
+	if (!host || !*host)
+	{
+		"\nNo host provided.\n";
+		Free(host);
+		Free(path);
+		return;
+	}
+
+	HttpGetOnce(host, path);
+
+	Free(host);
+	Free(path);
+}
+
+HttpGet;

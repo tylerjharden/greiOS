@@ -1,0 +1,85 @@
+// Networking smoke test: DHCP -> DNS -> TCP -> HTTP (plain)
+// Designed to be run inside ZealOS.
+// Usage:
+//   Cd("C:/Home/Net/Tests"); ExeFile("NetSmokeTest");
+
+Cd(__DIR__ "/..");;
+#include "Load"
+
+#define SMOKE_RETRIES 5
+#define SMOKE_BUF_SIZE 512
+
+U0 NetSmokeTest()
+{
+	I64 retries = SMOKE_RETRIES;
+	CTCPSocket *tcp;
+	U8 buf[SMOKE_BUF_SIZE + 1];
+	I64 n;
+	U8 *req;
+	Bool ok = TRUE;
+
+	"\n$$LTGREEN$$NetSmokeTest$$FG$$: starting...\n";
+
+	NetConfigure;
+	while (ipv4_globals.local_ip == 0 && retries--)
+	{
+		"NetConfigure unsuccessful, retrying...\n";
+		NetConfigure;
+	}
+
+	if (ipv4_globals.local_ip == 0)
+	{
+		"\n$$RED$$FAIL$$FG$$: DHCP/NetConfigure did not obtain an IP.\n";
+		NetRep;
+		return;
+	}
+
+	"\n$$LTGREEN$$OK$$FG$$: NetConfigure succeeded.\n";
+
+	// DNS + TCP + HTTP
+	tcp = TCPConnectionCreate("example.com", 80);
+	if (!tcp)
+	{
+		"\n$$RED$$FAIL$$FG$$: TCPConnectionCreate(example.com:80) failed (DNS or TCP).\n";
+		NetRep;
+		return;
+	}
+
+	req = "GET / HTTP/1.0\r\nHost: example.com\r\nUser-Agent: ZealOS-NetSmokeTest\r\nConnection: close\r\n\r\n";
+	if (TCPSocketSendAll(tcp, req, StrLen(req)) <= 0)
+	{
+		"\n$$RED$$FAIL$$FG$$: HTTP request send failed.\n";
+		TCPSocketClose(tcp);
+		NetRep;
+		return;
+	}
+
+	// Read first chunk and sanity check it looks like HTTP
+	n = TCPSocketReceive(tcp, buf, SMOKE_BUF_SIZE);
+	if (n <= 0)
+	{
+		"\n$$RED$$FAIL$$FG$$: did not receive any HTTP response bytes.\n";
+		ok = FALSE;
+	}
+	else
+	{
+		buf[n] = 0;
+		"\n$$LTBLUE$$First bytes:$$FG$$\n%s\n", buf;
+		if (StrNCmp(buf, "HTTP/", 5) != 0)
+		{
+			"\n$$YELLOW$$WARN$$FG$$: response does not start with 'HTTP/' (still may be OK).\n";
+		}
+	}
+
+	TCPSocketClose(tcp);
+
+	"\n";
+	NetRep;
+
+	if (ok)
+		"\n$$LTGREEN$$PASS$$FG$$: DHCP + DNS + TCP + HTTP basic path works.\n";
+	else
+		"\n$$RED$$FAIL$$FG$$: see output above.\n";
+}
+
+NetSmokeTest;
