@@ -1,0 +1,71 @@
+name: Build ZealOS ISOs
+
+on:
+  # Builds for PRs into master
+  pull_request:
+    branches: [ master ]
+
+  # Builds for pushes to master and for direct pushes to this feature branch
+  push:
+    branches:
+      - master
+      - internet-v1-e1000-httpget
+
+  # Manual runs (useful for branches)
+  workflow_dispatch: {}
+
+jobs:
+  build-iso:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            make \
+            git \
+            curl \
+            xorriso \
+            qemu-system-x86 \
+            qemu-utils \
+            parted \
+            kmod \
+            util-linux
+
+      - name: Ensure NBD kernel module is available
+        run: |
+          sudo modprobe nbd max_part=8
+          lsmod | grep -q '^nbd'
+
+      - name: Build ISOs (headless)
+        run: |
+          cd build
+          chmod +x ./build-iso.sh
+          ./build-iso.sh --headless | tee build-iso.log
+
+      - name: Upload BIOS ISO artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: zeal-os-bios-iso
+          path: build/ZealOS-PublicDomain-BIOS-*.iso
+          if-no-files-found: error
+
+      - name: Upload UEFI ISO artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: zeal-os-uefi-iso
+          path: build/ZealOS-BSD2-UEFI-*.iso
+          if-no-files-found: error
+
+      - name: Upload build log
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-iso-log
+          path: build/build-iso.log
+          if-no-files-found: error
