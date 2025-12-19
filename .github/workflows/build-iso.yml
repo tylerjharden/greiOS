@@ -43,6 +43,15 @@ jobs:
           sudo modprobe nbd max_part=8
           lsmod | grep -q '^nbd'
 
+      - name: Disable KVM acceleration on GitHub-hosted runners
+        run: |
+          # The build script auto-enables KVM if it detects the module via lsmod.
+          # On GitHub-hosted runners, KVM may be present but not permitted, causing QEMU to fail.
+          sudo modprobe -r kvm_intel 2>/dev/null || true
+          sudo modprobe -r kvm_amd 2>/dev/null || true
+          sudo modprobe -r kvm 2>/dev/null || true
+          ! lsmod | grep -q '^kvm' || true
+
       - name: Build ISOs (headless)
         run: |
           cd build
